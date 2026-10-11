@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Xero Addon Generator</title>
+<meta name="description" content="Generate Garry's Mod props, NPCs, and SWEPs.">
+<meta name="theme-color" content="#0b0d10">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" defer></script>
+</head>
+<body>
+
+<header>
+    <div class="brand">
+        <span class="brand-mark">X</span>
+        <h1>Xero Addon Generator</h1>
+    </div>
+    <div class="header-actions">
+        <a class="btn-link gmod-link" href="https://store.steampowered.com/app/4000/Garrys_Mod/" target="_blank" rel="noopener">Garry's Mod</a>
+        <button class="btn-link" id="theme-btn" type="button">Light</button>
+        <button class="btn-link" id="settings-link" type="button">Settings</button>
+        <button class="btn-link" id="reset-link" type="button">Reset</button>
+        <button class="btn-link" id="about-link" type="button">About</button>
+    </div>
+</header>
+
+<div class="summary">
+    <div class="summary-cell"><span class="summary-label">Making</span><span class="summary-value" id="summary-type">Weapon</span></div>
+    <div class="summary-cell"><span class="summary-label">Class</span><span class="summary-value" id="summary-class">ent_my_entity</span></div>
+    <div class="summary-cell"><span class="summary-label">Output</span><span class="summary-value" id="summary-path">addons/ent_my_entity/lua/entities/ent_my_entity.lua</span></div>
+</div>
+
+<main>
+    <div class="panel">
+        <div class="panel-header">
+            <h2>Configure</h2>
+            <span class="panel-sub" id="panel-sub">SWEP</span>
+        </div>
+        <div class="panel-body single-column">
+
+            <div class="section">
+                <h3 class="section-title">What are you making?</h3>
+                <div class="type-picker">
+                    <button type="button" class="type-card" data-type="npc">
+                        <span class="type-name">NPC</span>
+                        <span class="type-desc">AI that walks and fights</span>
+                    </button>
+                    <button type="button" class="type-card active" data-type="weapon">
+                        <span class="type-name">Weapon</span>
+                        <span class="type-desc">SWEP the player can hold</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3 class="section-title">Presets</h3>
+                <div class="preset-grid">
+                    <button type="button" class="preset" data-preset="zombie">Zombie</button>
+                    <button type="button" class="preset" data-preset="metrocop">Metrocop</button>
+                    <button type="button" class="preset" data-preset="soldier">Soldier</button>
+                    <button type="button" class="preset" data-preset="nextbot">Nextbot</button>
+                    <button type="button" class="preset" data-preset="rifle">Rifle</button>
+                    <button type="button" class="preset" data-preset="crowbar">Crowbar</button>
+                    <button type="button" class="preset" data-preset="dual">Dual Pistols</button>
+                </div>
+            </div>
+
+            <div class="section" id="base-section" hidden>
+                <h3 class="section-title">NPC Base</h3>
+                <div class="pill-row">
+                    <button type="button" class="pill active" data-base="drgbase">DrGBase</button>
+                    <button type="button" class="pill" data-base="nextbot">Nextbot</button>
+                    <button type="button" class="pill" data-base="308">308</button>
+                </div>
+                <p class="section-hint" id="base-hint"></p>
+            </div>
+
+            <div class="section" id="behavior-section" hidden>
+                <h3 class="section-title">Behavior</h3>
+                <div class="pill-row">
+                    <button type="button" class="pill" data-behavior="passive">Passive</button>
+                    <button type="button" class="pill active" data-behavior="melee">Melee</button>
+                    <button type="button" class="pill" data-behavior="ranged">Ranged</button>
+                    <button type="button" class="pill" data-behavior="both">Both</button>
+                </div>
+                <p class="section-hint" id="behavior-hint"></p>
+            </div>
+
+            <div class="section" id="weapon-type-section" hidden>
+                <h3 class="section-title">Weapon Type</h3>
+                <div class="pill-row">
+                    <button type="button" class="pill active" data-wtype="gun">Gun</button>
+                    <button type="button" class="pill" data-wtype="melee">Melee</button>
+                    <button type="button" class="pill" data-wtype="dual">Dual</button>
+                    <button type="button" class="pill" data-wtype="tool">Tool</button>
+                </div>
+                <p class="section-hint" id="weapon-type-hint"></p>
+            </div>
+
+            <div class="section">
+                <h3 class="section-title">Names</h3>
+                <div class="field">
+                    <label for="ent_name">Entity Name</label>
+                    <input type="text" id="ent_name" placeholder="my_entity" maxlength="48" spellcheck="false" autocomplete="off">
+                    <span class="hint">Spawn class: <code id="ent-name-hint">ent_my_entity</code></span>
+                </div>
+                <div class="field">
+                    <label for="print_name">Display Name</label>
+                    <input type="text" id="print_name" placeholder="My Entity" maxlength="64" autocomplete="off">
+                    <span class="hint">Shown in the spawn menu.</span>
+                </div>
+            </div>
+
+            <div class="section" id="model-section">
+                <h3 class="section-title">Model</h3>
+                <div class="field" id="model-field">
+                    <label for="model">Model Path</label>
+                    <div class="input-row">
+                        <input type="text" id="model" placeholder="models/props_c17/oildrum001.mdl" maxlength="200" spellcheck="false" autocomplete="off">
+                        <button type="button" class="btn btn-secondary btn-small" id="model-browse">Browse</button>
+                    </div>
+                    <div class="quick-picks">
+                        <button type="button" class="quick" data-target="model" data-value="models/zombie/classic.mdl">Zombie</button>
+                        <button type="button" class="quick" data-target="model" data-value="models/zombie/fast.mdl">Fast Zombie</button>
+                        <button type="button" class="quick" data-target="model" data-value="models/headcrabclassic.mdl">Headcrab</button>
+                        <button type="button" class="quick" data-target="model" data-value="models/antlion.mdl">Antlion</button>
+                        <button type="button" class="quick" data-target="model" data-value="models/combine_soldier.mdl">Combine</button>
+                        <button type="button" class="quick" data-target="model" data-value="models/props_c17/oildrum001.mdl">Oil Drum</button>
+                    </div>
+                </div>
+                <div class="field" id="model-list-field" hidden>
+                    <label for="model_list">Extra Models</label>
+                    <input type="text" id="model_list" placeholder="comma-separated paths" maxlength="800" spellcheck="false" autocomplete="off">
+                    <span class="hint">One is chosen at random per spawn.</span>
+                </div>
+                <div class="field" id="wmodel-field" hidden>
+                    <label for="wmodel">World Model</label>
+                    <input type="text" id="wmodel" placeholder="models/weapons/w_pistol.mdl" maxlength="200" spellcheck="false" autocomplete="off">
+                    <div class="quick-picks">
+                        <button type="button" class="quick" data-target="wmodel" data-value="models/weapons/w_pistol.mdl">Pistol</button>
+                        <button type="button" class="quick" data-target="wmodel" data-value="models/weapons/w_357.mdl">Magnum</button>
+                        <button type="button" class="quick" data-target="wmodel" data-value="models/weapons/w_smg1.mdl">SMG</button>
+                        <button type="button" class="quick" data-target="wmodel" data-value="models/weapons/w_rif_m4a1.mdl">M4A1</button>
+                        <button type="button" class="quick" data-target="wmodel" data-value="models/weapons/w_shotgun.mdl">Shotgun</button>
+                        <button type="button" class="quick" data-target="wmodel" data-value="models/weapons/w_crowbar.mdl">Crowbar</button>
+                    </div>
+                </div>
+                <div class="field" id="vmodel-field" hidden>
+                    <label for="vmodel">View Model</label>
+                    <input type="text" id="vmodel" placeholder="models/weapons/v_pistol.mdl" maxlength="200" spellcheck="false" autocomplete="off">
+                    <div class="quick-picks">
+                        <button type="button" class="quick" data-target="vmodel" data-value="models/weapons/v_pistol.mdl">Pistol</button>
+                        <button type="button" class="quick" data-target="vmodel" data-value="models/weapons/c_357.mdl">Magnum</button>
+                        <button type="button" class="quick" data-target="vmodel" data-value="models/weapons/v_smg1.mdl">SMG</button>
+                        <button type="button" class="quick" data-target="vmodel" data-value="models/weapons/cstrike/c_rif_m4a1.mdl">M4A1</button>
+                        <button type="button" class="quick" data-target="vmodel" data-value="models/weapons/v_shotgun.mdl">Shotgun</button>
+                        <button type="button" class="quick" data-target="vmodel" data-value="models/weapons/v_crowbar.mdl">Crowbar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section" id="stats-section">
+                <h3 class="section-title">Stats</h3>
+                <div class="field" id="health-field" hidden>
+                    <label for="health">Health</label>
+                    <input type="number" id="health" placeholder="100" min="1" max="100000">
+                </div>
+                <div class="field" id="walk-field" hidden>
+                    <label for="walk_speed">Walk Speed</label>
+                    <input type="number" id="walk_speed" placeholder="100" min="1" max="2000">
+                </div>
+                <div class="field" id="run-field" hidden>
+                    <label for="run_speed">Run Speed</label>
+                    <input type="number" id="run_speed" placeholder="200" min="1" max="2000">
+                </div>
+                <div class="field" id="damage-field" hidden>
+                    <label for="damage">Damage</label>
+                    <input type="number" id="damage" placeholder="10" min="0" max="100000">
+                </div>
+                <div class="field" id="clip-field" hidden>
+                    <label for="clip_size">Clip Size</label>
+                    <input type="number" id="clip_size" placeholder="30" min="-1" max="1000">
+                    <span class="hint">Use -1 for infinite fire and no reload.</span>
+                </div>
+                <div class="field" id="attack-range-field" hidden>
+                    <label for="attack_range">Attack Range</label>
+                    <input type="number" id="attack_range" placeholder="75" min="10" max="5000">
+                </div>
+                <div class="field" id="melee-cooldown-field" hidden>
+                    <label for="melee_cooldown">Melee Cooldown (seconds)</label>
+                    <input type="number" id="melee_cooldown" placeholder="1.5" min="0.1" max="30" step="0.1">
+                </div>
+                <div class="field" id="shot-delay-field" hidden>
+                    <label for="shot_delay">Shot Delay (seconds)</label>
+                    <input type="number" id="shot_delay" placeholder="1.2" min="0.1" max="30" step="0.1">
+                </div>
+            </div>
+
+            <div class="section" id="firing-section">
+                <h3 class="section-title">Firing</h3>
+                <div class="field" id="fire-delay-field" hidden>
+                    <label for="fire_delay">Fire Delay (seconds)</label>
+                    <input type="number" id="fire_delay" placeholder="0.1" min="0.01" max="5" step="0.01">
+                </div>
+                <div class="field" id="automatic-field" hidden>
+                    <label>Fire Mode</label>
+                    <div class="pill-row">
+                        <button type="button" class="pill" data-auto="semi">Semi-auto</button>
+                        <button type="button" class="pill active" data-auto="auto">Automatic</button>
+                    </div>
+                </div>
+                <div class="field" id="ammo-field" hidden>
+                    <label for="ammo_type">Ammo Type</label>
+                    <input type="text" id="ammo_type" placeholder="ar2" maxlength="32" spellcheck="false" autocomplete="off">
+                    <div class="quick-picks">
+                        <button type="button" class="quick" data-target="ammo_type" data-value="pistol">pistol</button>
+                        <button type="button" class="quick" data-target="ammo_type" data-value="smg1">smg1</button>
+                        <button type="button" class="quick" data-target="ammo_type" data-value="ar2">ar2</button>
+                        <button type="button" class="quick" data-target="ammo_type" data-value="357">357</button>
+                        <button type="button" class="quick" data-target="ammo_type" data-value="buckshot">buckshot</button>
+                    </div>
+                </div>
+                <div class="field" id="vmodel-fov-field" hidden>
+                    <label for="vmodel_fov">Viewmodel FOV</label>
+                    <input type="number" id="vmodel_fov" placeholder="54" min="10" max="120">
+                </div>
+            </div>
+
+            <div class="section" id="audio-section">
+                <h3 class="section-title">Sounds</h3>
+                <div class="field" id="fire-sound-field" hidden>
+                    <label for="sound_fire">Fire Sound</label>
+                    <input type="text" id="sound_fire" placeholder="Weapon_AR2.Single" maxlength="200" spellcheck="false" autocomplete="off">
+                </div>
+                <div class="field" id="reload-sound-field" hidden>
+                    <label for="sound_reload">Reload Sound</label>
+                    <input type="text" id="sound_reload" placeholder="leave blank for default" maxlength="200" spellcheck="false" autocomplete="off">
+                </div>
+                <div class="field" id="npc-sound-field" hidden>
+                    <label for="npc_sound_attack">Attack Sound</label>
+                    <input type="text" id="npc_sound_attack" placeholder="leave blank for default" maxlength="200" spellcheck="false" autocomplete="off">
+                </div>
+                <div class="field" id="npc-projectile-sound-field" hidden>
+                    <label for="npc_sound_projectile">Projectile Impact Sound</label>
+                    <input type="text" id="npc_sound_projectile" placeholder="leave blank for default" maxlength="200" spellcheck="false" autocomplete="off">
+                </div>
+            </div>
+
+            <div class="section" id="team-section">
+                <h3 class="section-title">Team</h3>
+                <div class="field" id="faction-field" hidden>
+                    <label for="faction">Faction</label>
+                    <input type="text" id="faction" placeholder="FACTION_XERO" maxlength="200" spellcheck="false" autocomplete="off">
+                </div>
+                <div class="field" id="disposition-field" hidden>
+                    <label>Disposition</label>
+                    <div class="pill-row">
+                        <button type="button" class="pill active" data-disp="hostile">Hostile</button>
+                        <button type="button" class="pill" data-disp="neutral">Neutral</button>
+                        <button type="button" class="pill" data-disp="friendly">Friendly</button>
+                    </div>
+                    <p class="section-hint" id="disposition-hint"></p>
+                </div>
+                <div class="field" id="hate-field" hidden>
+                    <label for="hate">Hostile To</label>
+                    <input type="text" id="hate" placeholder="players" maxlength="200" spellcheck="false" autocomplete="off">
+                </div>
+                <div class="field" id="like-field" hidden>
+                    <label for="like">Friendly To</label>
+                    <input type="text" id="like" placeholder="same_faction" maxlength="200" spellcheck="false" autocomplete="off">
+                </div>
+            </div>
+
+            <div class="section" id="projectile-section">
+                <h3 class="section-title">Projectile</h3>
+                <div class="field" id="projectile-field" hidden>
+                    <label for="projectile_model">Projectile Model</label>
+                    <input type="text" id="projectile_model" placeholder="models/hunter/misc/sphere025x025.mdl" maxlength="200" spellcheck="false" autocomplete="off">
+                </div>
+                <div class="field" id="projectile-color-field" hidden>
+                    <label for="projectile_color">Projectile Color</label>
+                    <input type="color" id="projectile_color" value="#ffaa44">
+                </div>
+                <div class="field" id="projectile-scale-field" hidden>
+                    <label for="projectile_scale">Projectile Scale</label>
+                    <input type="number" id="projectile_scale" placeholder="1" min="0.1" max="10" step="0.1">
+                </div>
+                <div class="field" id="projectile-speed-field" hidden>
+                    <label for="projectile_speed">Projectile Speed</label>
+                    <input type="number" id="projectile_speed" placeholder="1500" min="100" max="5000" step="50">
+                </div>
+            </div>
+
+            <div class="section" id="anims-section">
+                <h3 class="section-title">Animations (optional)</h3>
+                <div class="field" id="npc-anim-field" hidden>
+                    <label>NPC Animations</label>
+                    <p class="section-hint">Leave blank to use DrGBase and the model's own defaults.</p>
+                    <div class="anim-group">
+                        <div class="anim-row"><span class="anim-label">Idle</span>
+                            <select class="anim-act" id="anim_idle_act"><option value="">-- none --</option><option value="ACT_IDLE">ACT_IDLE</option><option value="ACT_IDLE_ANGRY">ACT_IDLE_ANGRY</option></select>
+                            <input type="text" id="anim_idle" placeholder="sequence" maxlength="64" spellcheck="false">
+                        </div>
+                        <div class="anim-row"><span class="anim-label">Walk</span>
+                            <select class="anim-act" id="anim_walk_act"><option value="">-- none --</option><option value="ACT_WALK">ACT_WALK</option><option value="ACT_RUN">ACT_RUN</option></select>
+                            <input type="text" id="anim_walk" placeholder="sequence" maxlength="64" spellcheck="false">
+                        </div>
+                        <div class="anim-row"><span class="anim-label">Run</span>
+                            <select class="anim-act" id="anim_run_act"><option value="">-- none --</option><option value="ACT_RUN">ACT_RUN</option><option value="ACT_HL2MP_RUN">ACT_HL2MP_RUN</option></select>
+                            <input type="text" id="anim_run" placeholder="sequence" maxlength="64" spellcheck="false">
+                        </div>
+                        <div class="anim-row"><span class="anim-label">Attack</span>
+                            <select class="anim-act" id="anim_attack_act"><option value="">-- none --</option><option value="ACT_MELEE_ATTACK1">ACT_MELEE_ATTACK1</option><option value="ACT_RANGE_ATTACK1">ACT_RANGE_ATTACK1</option></select>
+                            <input type="text" id="anim_attack" placeholder="sequence" maxlength="64" spellcheck="false">
+                        </div>
+                    </div>
+                </div>
+                <div class="field" id="weapon-anim-field" hidden>
+                    <label>Weapon Animations</label>
+                    <p class="section-hint">Leave blank to use the viewmodel's own ACT_VM sequences.</p>
+                    <div class="anim-group">
+                        <div class="anim-row"><span class="anim-label">Draw</span>
+                            <select class="anim-act" id="wep_draw_act"><option value="">-- none --</option><option value="ACT_VM_DRAW">ACT_VM_DRAW</option></select>
+                            <input type="text" id="wep_draw" placeholder="sequence" maxlength="64" spellcheck="false">
+                        </div>
+                        <div class="anim-row"><span class="anim-label">Idle</span>
+                            <select class="anim-act" id="wep_idle_act"><option value="">-- none --</option><option value="ACT_VM_IDLE">ACT_VM_IDLE</option></select>
+                            <input type="text" id="wep_idle" placeholder="sequence" maxlength="64" spellcheck="false">
+                        </div>
+                        <div class="anim-row"><span class="anim-label">Fire</span>
+                            <select class="anim-act" id="wep_fire_act"><option value="">-- none --</option><option value="ACT_VM_PRIMARYATTACK">ACT_VM_PRIMARYATTACK</option></select>
+                            <input type="text" id="wep_fire" placeholder="sequence" maxlength="64" spellcheck="false">
+                        </div>
+                        <div class="anim-row"><span class="anim-label">Reload</span>
+                            <select class="anim-act" id="wep_reload_act"><option value="">-- none --</option><option value="ACT_VM_RELOAD">ACT_VM_RELOAD</option></select>
+                            <input type="text" id="wep_reload" placeholder="sequence" maxlength="64" spellcheck="false">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        <div class="action-row">
+            <button class="btn btn-primary btn-generate" id="generate-btn">Generate SWEP</button>
+        </div>
+    </div>
+
+    <div class="panel preview-panel">
+        <div class="panel-header">
+            <h2>Output</h2>
+            <span class="panel-sub" id="preview-status">idle</span>
+        </div>
+        <div class="preview-meta"><span class="meta-label">Class</span><span class="meta-value" id="preview-class">--</span></div>
+        <div class="preview-meta"><span class="meta-label">Path</span><span class="meta-value" id="preview-path">addons/...</span></div>
+        <div class="code-toolbar">
+            <label class="code-toggle"><input type="checkbox" id="wrap-toggle"> Wrap lines</label>
+            <button class="btn btn-secondary btn-small" id="preview-copy-btn" disabled>Copy</button>
+        </div>
+        <div class="code-wrap"><pre class="code" id="preview-code">Fill in the form on the left, then press Generate.</pre></div>
+        <div class="spawn-panel" id="spawn-panel" hidden>
+            <span class="spawn-label">In-game spawn command</span>
+            <div class="spawn-row">
+                <code class="spawn-code" id="spawn-code">--</code>
+                <button class="btn btn-secondary btn-small" id="spawn-copy-btn">Copy</button>
+            </div>
+        </div>
+        <div class="action-row">
+            <div class="action-row-buttons">
+                <button class="btn btn-secondary" id="copy-path-btn" disabled>Copy Path</button>
+                <button class="btn btn-secondary" id="copy-btn" disabled>Copy Code</button>
+                <button class="btn btn-secondary" id="download-lua-btn" disabled>Download .lua</button>
+                <button class="btn btn-primary" id="download-btn" disabled>Download Zip</button>
+            </div>
+        </div>
+    </div>
+</main>
+
+<section class="bases-strip">
+    <div class="bases-inner">
+        <div class="bases-header">
+            <h3>Required Bases</h3>
+            <p>Subscribe to these addons before spawning a DrGBase or 308 NPC. Vanilla Nextbot and all SWEPs need nothing extra.</p>
+        </div>
+        <div class="bases-grid">
+            <a class="base-card" href="https://steamcommunity.com/workshop/filedetails/?id=1560118657" target="_blank" rel="noopener">
+                <span class="base-icon base-icon-drg">D</span>
+                <span class="base-meta">
+                    <span class="base-name">DrGBase</span>
+                    <span class="base-desc">Full AI base for custom NPCs</span>
+                </span>
+                <span class="base-cta">Subscribe</span>
+            </a>
+            <a class="base-card" href="https://steamcommunity.com/sharedfiles/filedetails/?id=2009832911" target="_blank" rel="noopener">
+                <span class="base-icon base-icon-308">3</span>
+                <span class="base-meta">
+                    <span class="base-name">308 Base</span>
+                    <span class="base-desc">NPC framework with range and melee</span>
+                </span>
+                <span class="base-cta">Subscribe</span>
+            </a>
+            <a class="base-card" href="https://steamcommunity.com/sharedfiles/filedetails/?id=3786904478" target="_blank" rel="noopener">
+                <span class="base-icon base-icon-x308">X</span>
+                <span class="base-meta">
+                    <span class="base-name">x308 Base</span>
+                    <span class="base-desc">Maintained fork of 308</span>
+                </span>
+                <span class="base-cta">Subscribe</span>
+            </a>
+        </div>
+    </div>
+</section>
+
+<div class="footnote">Built for <a href="https://store.steampowered.com/app/4000/Garrys_Mod/" target="_blank" rel="noopener">Garry's Mod</a> &middot; Made by <a href="https://steamcommunity.com/id/xerochunks/" target="_blank" rel="noopener">XeroChunks</a></div>
+
+<div class="modal-backdrop" id="settings-modal" hidden>
+    <div class="modal">
+        <div class="modal-header"><h3>Settings</h3><button class="modal-close" id="settings-close">Close</button></div>
+        <div class="modal-body" style="padding:1.25rem">
+            <div class="field">
+                <label style="display:flex;align-items:center;gap:.6rem;font-weight:600;text-transform:none;letter-spacing:0;font-size:.9rem;color:var(--text-1)">
+                    <input type="checkbox" id="fixed-folder-toggle">
+                    Use one fixed addon folder for everything
+                </label>
+                <span class="hint">All generated addons land in <code>addons/&lt;name&gt;/</code>.</span>
+            </div>
+            <div class="field" id="fixed-folder-field" hidden>
+                <label for="fixed-folder-name">Fixed Folder Name</label>
+                <input type="text" id="fixed-folder-name" placeholder="xero_addons" maxlength="48" spellcheck="false" autocomplete="off">
+            </div>
+            <div class="field">
+                <label>Theme</label>
+                <div class="pill-row">
+                    <button type="button" class="pill" data-theme-set="dark">Dark</button>
+                    <button type="button" class="pill" data-theme-set="light">Light</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-backdrop" id="about-modal" hidden>
+    <div class="modal">
+        <div class="modal-header"><h3>About</h3><button class="modal-close" id="about-close">Close</button></div>
+        <div class="modal-body" style="padding:1.25rem;line-height:1.6;font-size:.85rem">
+            <p style="margin-top:0"><strong>Xero Addon Generator</strong></p>
+            <p>Generate Garry's Mod props, NPCs, and SWEPs in your browser.</p>
+            <p>Supports DrGBase, base_nextbot, 308, and four weapon types.</p>
+            <p>Made by <a href="https://steamcommunity.com/id/xerochunks/" target="_blank" rel="noopener" style="color:var(--accent)">XeroChunks</a>.</p>
+        </div>
+    </div>
+</div>
+
+<div class="modal-backdrop" id="model-browser" hidden>
+    <div class="modal">
+        <div class="modal-header"><h3>Common Model Paths</h3><button class="modal-close" id="model-browser-close">Close</button></div>
+        <div class="modal-search"><input type="text" id="model-search" placeholder="Search paths..." autocomplete="off"></div>
+        <div class="modal-body" id="model-browser-body"></div>
+    </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script src="templates.js" defer></script>
+<script src="script.js" defer></script>
+</body>
+</html>
