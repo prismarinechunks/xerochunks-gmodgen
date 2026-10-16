@@ -58,6 +58,7 @@ ENT.AdminOnly = false
 
 ENT.Models = [MODELS_TABLE]
 ENT.SpawnHealth = [HEALTH]
+ENT.MeleeCooldown = [MELEE_COOLDOWN]
 ENT.AttackSound = "[NPC_ATTACK_SOUND]"
 ENT.BloodColor = BLOOD_COLOR_RED
 
@@ -71,6 +72,7 @@ if SERVER then
             if ai_ignoreplayers:GetBool() then return false end
             return ent:Alive()
         end
+        if ent:IsNextBot() then return true end
         return ent:IsNPC() and ent:Health() > 0
     end
 
@@ -114,22 +116,24 @@ if SERVER then
                 dmg:SetAttacker(self)
                 dmg:SetInflictor(self)
                 dmg:SetDamage([DAMAGE])
-                dmg:SetDamageType(DMG_DIRECT)
-                dmg:SetDamageForce(dir * 1400 * 100)
+                dmg:SetDamageType(DMG_SLASH)
+                dmg:SetDamageForce(dir * 800)
                 ent:TakeDamageInfo(dmg)
             end
         end
     end
 
     function ENT:RecomputeTargetPath()
+        if not IsValid(self.CurrentTarget) then return end
         local targetPos = self.CurrentTarget:GetPos()
-        local tr = util.TraceEntity({
+        local tr = util.TraceLine({
             start = targetPos,
             endpos = targetPos - Vector(0, 0, 16384),
             filter = self.CurrentTarget,
             mask = MASK_SOLID_BRUSHONLY
-        }, self.CurrentTarget)
+        })
         if tr.Hit and util.IsInWorld(tr.HitPos) then targetPos = tr.HitPos end
+        if not util.IsInWorld(targetPos) then return end
         self.MovePath:Compute(self, targetPos)
     end
 
@@ -149,7 +153,8 @@ if SERVER then
             self.LastTargetSearch = t
         end
         if IsValid(self.CurrentTarget) then
-            if t - self.LastAttack > 0.5 then
+            local cooldown = tonumber(self.MeleeCooldown) or 0.5
+            if t - self.LastAttack > cooldown then
                 self:AttackNearbyTargets()
                 self.LastAttack = t
             end
@@ -190,36 +195,40 @@ if SERVER then
     function ENT:CustomInit()
 [RELATIONSHIP_BLOCK]
     end
-end
 
-function ENT:Attack()
-    if [HAS_RANGED_BOOL] and IsValid(self:GetEnemy()) and self:GetRangeTo(self:GetEnemy()) > 200 then
-        self:RangeAtt()
-    else
+    function ENT:Attack()
+        if not IsValid(self:GetEnemy()) then return end
+        if [HAS_RANGED_BOOL] and self:GetRangeTo(self:GetEnemy()) > 200 then
+            self:RangeAtt()
+        else
+            if self.AttackSound and self.AttackSound ~= "" then
+                self:EmitSound(self.AttackSound)
+            end
+            self:Melee({
+                { Range = [MELEE_ATTACK_RANGE], dmg = [DAMAGE], Time = 0.4, SHit = "Flesh.ImpactHard", SMiss = "WeaponFrag.Throw" }
+            })
+        end
+    end
+
+    function ENT:RangeAtt()
+        if not IsValid(self:GetEnemy()) then return end
+        if self.NextShot and CurTime() < self.NextShot then return end
+        self.NextShot = CurTime() + (self.ShotDelay or 1.0)
+        if self.Ammo and self.Ammo < 1 then
+            self.Ammo = 12
+            return
+        end
+        if self.Ammo then self.Ammo = self.Ammo - 1 end
         if self.AttackSound and self.AttackSound ~= "" then
             self:EmitSound(self.AttackSound)
         end
-        self:Melee({
-            { Range = [MELEE_ATTACK_RANGE], dmg = [DAMAGE], Time = 0.4, SHit = "Flesh.ImpactHard", SMiss = "WeaponFrag.Throw" }
-        })
+        if self.LookupSequence and self.SEQ then
+            local seq = self:LookupSequence("shootgun2")
+            if seq and seq > 0 then self:SEQ("shootgun2") end
+        end
+        self.Timer = CurTime() + 0.7
+        if self.FireB then self:FireB() end
     end
-end
-
-function ENT:RangeAtt()
-    if not IsValid(self:GetEnemy()) then return end
-    if self.NextShot and CurTime() < self.NextShot then return end
-    self.NextShot = CurTime() + (self.ShotDelay or 1.0)
-    if self.Ammo and self.Ammo < 1 then
-        self.Ammo = 12
-        return
-    end
-    if self.Ammo then self.Ammo = self.Ammo - 1 end
-    if self.AttackSound and self.AttackSound ~= "" then
-        self:EmitSound(self.AttackSound)
-    end
-    self:SEQ("shootgun2")
-    self.Timer = CurTime() + 0.7
-    self:FireB()
 end
 
 function ENT:OnHurt(d, h) end
@@ -239,7 +248,7 @@ SWEP.Spawnable = true
 SWEP.AdminOnly = false
 SWEP.Slot = 2
 SWEP.SlotPos = 0
-SWEP.Instructions = "Left click to fire. Right click to aim down sights."
+SWEP.Instructions = "Left click to fire."
 SWEP.Purpose = "Standard firearm."
 SWEP.HoldType = "ar2"
 SWEP.UseHands = true
@@ -262,8 +271,16 @@ SWEP.ReloadSound = "[RELOAD_SOUND]"
 
 [WEAPON_ANIMATIONS]
 
+local function XAC_PlayAct(self, act, fallback)
+    if act ~= nil and type(act) == "number" then
+        self:SendWeaponAnim(act)
+    else
+        self:SendWeaponAnim(fallback)
+    end
+end
+
 function SWEP:Deploy()
-    self:SendWeaponAnim(ACT_VM_DRAW)
+    XAC_PlayAct(self, self.DrawAct, ACT_VM_DRAW)
     self:SetNextPrimaryFire(CurTime() + 0.3)
     return true
 end
@@ -289,10 +306,11 @@ function SWEP:PrimaryAttack()
     bullet.TracerName = "Tracer"
     bullet.Force = 5
     bullet.Damage = [DAMAGE]
-    bullet.AmmoType = "Pistol"
+    bullet.AmmoType = self.Primary.Ammo or "Pistol"
     owner:FireBullets(bullet)
     owner:ViewPunch(Angle(-1, 0, 0))
     owner:LagCompensation(false)
+    XAC_PlayAct(self, self.FireAct, ACT_VM_PRIMARYATTACK)
     if self.Primary.ClipSize and self.Primary.ClipSize > 0 and self:Clip1() <= 0 then
         self:Reload()
     end
@@ -304,6 +322,7 @@ function SWEP:Reload()
     if self.ReloadSound and self.ReloadSound ~= "" then
         self:EmitSound(self.ReloadSound)
     end
+    XAC_PlayAct(self, self.ReloadAct, ACT_VM_RELOAD)
     self:DefaultReload(ACT_VM_RELOAD)
 end
 
@@ -344,17 +363,25 @@ SWEP.MeleeSound = "[FIRE_SOUND]"
 
 [WEAPON_ANIMATIONS]
 
+local function XAC_PlayAct(self, act, fallback)
+    if act ~= nil and type(act) == "number" then
+        self:SendWeaponAnim(act)
+    else
+        self:SendWeaponAnim(fallback)
+    end
+end
+
 function SWEP:Deploy()
-    self:SendWeaponAnim(ACT_VM_DRAW)
+    XAC_PlayAct(self, self.DrawAct, ACT_VM_DRAW)
     return true
 end
 
 function SWEP:PrimaryAttack()
-    self:SetNextPrimaryFire(CurTime() + self.MeleeDelay)
     if not self:CanPrimaryAttack() then return end
+    self:SetNextPrimaryFire(CurTime() + self.MeleeDelay)
     local owner = self:GetOwner()
     if not IsValid(owner) then return end
-    self:SendWeaponAnim(ACT_VM_SWINGHARD)
+    XAC_PlayAct(self, self.FireAct, ACT_VM_HITCENTER)
     if self.MeleeSound and self.MeleeSound ~= "" then
         self:EmitSound(self.MeleeSound)
     end
@@ -390,7 +417,7 @@ SWEP.Spawnable = true
 SWEP.AdminOnly = false
 SWEP.Slot = 2
 SWEP.SlotPos = 0
-SWEP.Instructions = "Left click to fire. Right click to aim down sights."
+SWEP.Instructions = "Left click to fire."
 SWEP.Purpose = "Dual-wielded pistols."
 SWEP.HoldType = "duel"
 SWEP.UseHands = true
@@ -413,8 +440,16 @@ SWEP.ReloadSound = "[RELOAD_SOUND]"
 
 [WEAPON_ANIMATIONS]
 
+local function XAC_PlayAct(self, act, fallback)
+    if act ~= nil and type(act) == "number" then
+        self:SendWeaponAnim(act)
+    else
+        self:SendWeaponAnim(fallback)
+    end
+end
+
 function SWEP:Deploy()
-    self:SendWeaponAnim(ACT_VM_DRAW)
+    XAC_PlayAct(self, self.DrawAct, ACT_VM_DRAW)
     self:SetNextPrimaryFire(CurTime() + 0.3)
     return true
 end
@@ -440,10 +475,11 @@ function SWEP:PrimaryAttack()
     bullet.TracerName = "Tracer"
     bullet.Force = 5
     bullet.Damage = [DAMAGE]
-    bullet.AmmoType = "Pistol"
+    bullet.AmmoType = self.Primary.Ammo or "Pistol"
     owner:FireBullets(bullet)
     owner:ViewPunch(Angle(-1, 0, 0))
     owner:LagCompensation(false)
+    XAC_PlayAct(self, self.FireAct, ACT_VM_PRIMARYATTACK)
     if self.Primary.ClipSize and self.Primary.ClipSize > 0 and self:Clip1() <= 0 then
         self:Reload()
     end
@@ -455,6 +491,7 @@ function SWEP:Reload()
     if self.ReloadSound and self.ReloadSound ~= "" then
         self:EmitSound(self.ReloadSound)
     end
+    XAC_PlayAct(self, self.ReloadAct, ACT_VM_RELOAD)
     self:DefaultReload(ACT_VM_RELOAD)
 end
 
@@ -492,8 +529,16 @@ SWEP.FireSound = "[FIRE_SOUND]"
 
 [WEAPON_ANIMATIONS]
 
+local function XAC_PlayAct(self, act, fallback)
+    if act ~= nil and type(act) == "number" then
+        self:SendWeaponAnim(act)
+    else
+        self:SendWeaponAnim(fallback)
+    end
+end
+
 function SWEP:Deploy()
-    self:SendWeaponAnim(ACT_VM_DRAW)
+    XAC_PlayAct(self, self.DrawAct, ACT_VM_DRAW)
     self:SetNextPrimaryFire(CurTime() + 0.2)
     return true
 end
@@ -505,7 +550,7 @@ function SWEP:PrimaryAttack()
     if not IsValid(owner) then return end
     local tr = owner:GetEyeTrace()
     if not tr.Hit then return end
-    self:SendWeaponAnim(ACT_VM_PRIMARYATTACK)
+    XAC_PlayAct(self, self.FireAct, ACT_VM_PRIMARYATTACK)
     if self.FireSound and self.FireSound ~= "" then
         self:EmitSound(self.FireSound)
     end

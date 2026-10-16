@@ -6,9 +6,9 @@ const NAME_PATTERNS = {
 };
 
 const BASE_HINTS = {
-    drgbase: 'DrGBase base. Full AI, ranged and melee support.',
-    nextbot: 'base_nextbot. Melee-only default AI.',
-    '308':   '308 base. Uses HP, AttRange, and RangeAtt.'
+    drgbase: 'DrGBase. Melee + ranged. Needs DrGBase addon.',
+    nextbot: 'base_nextbot. Melee only. No extra addons.',
+    '308':   '308 / x308. Uses HP + AttRange. Needs 308 base.'
 };
 
 const BEHAVIOR_HINTS = {
@@ -25,10 +25,10 @@ const DISPOSITION_HINTS = {
 };
 
 const WEAPON_TYPE_HINTS = {
-    gun:   'Fires bullets and reloads from a magazine.',
-    melee: 'Swings and hits for direct damage.',
-    dual:  'Two pistols, one in each hand.',
-    tool:  'Custom toolgun. Left click deals damage.'
+    gun:   'Hitscan. Uses clip + reserve ammo.',
+    melee: 'Eye-trace swing. Uses attack range.',
+    dual:  'Paired pistols. Same stats as gun.',
+    tool:  'Eye-trace zap. No ammo.'
 };
 
 const BEHAVIOR_VALUES = {
@@ -190,15 +190,140 @@ const MODEL_CATALOG = {
 };
 
 const state = {
-    type: 'prop',
+    type: 'weapon',
     base: 'drgbase',
     behavior: 'melee',
     disposition: 'hostile',
     weaponType: 'gun',
     automatic: 'auto',
     theme: 'dark',
+    advanced: false,
     lastResult: null
 };
+
+const SIMPLE_MAPS = {
+    tough_weak: { health: 50, damage: 8 },
+    tough_normal: { health: 100, damage: 12 },
+    tough_tough: { health: 250, damage: 20 },
+    tough_boss: { health: 1000, damage: 35 },
+    speed_slow: { walk: 60, run: 100 },
+    speed_normal: { walk: 100, run: 200 },
+    speed_fast: { walk: 140, run: 320 },
+    power_light: { damage: 12 },
+    power_standard: { damage: 25 },
+    power_heavy: { damage: 45 },
+    rate_slow: { fire_delay: 0.25 },
+    rate_standard: { fire_delay: 0.12 },
+    rate_rapid: { fire_delay: 0.06 }
+};
+
+const SIMPLE_FACTIONS = {
+    zombies: { faction: 'FACTION_ZOMBIE', disposition: 'hostile', hate: 'players', like: 'same_faction', hint: 'Attacks players. Friends with zombies.' },
+    enemies: { faction: 'FACTION_COMBINE', disposition: 'hostile', hate: 'players', like: 'same_faction', hint: 'Attacks players. Friends with Combine.' },
+    allies: { faction: 'FACTION_REBELS', disposition: 'friendly', hate: 'FACTION_ZOMBIE, FACTION_COMBINE', like: 'players', hint: 'Defends players. Fights zombies + Combine.' },
+    rebels: { faction: 'FACTION_REBELS', disposition: 'neutral', hate: '', like: 'same_faction', hint: 'Ignores everyone until attacked.' },
+    neutral: { faction: '', disposition: 'neutral', hate: '', like: '', hint: 'Ignores everyone.' }
+};
+
+let syncingSimple = false;
+
+function setNum(id, v) { const el = $(id); if (el) el.value = String(v); }
+
+function applySimple(key) {
+    const m = SIMPLE_MAPS[key];
+    if (!m) return;
+    syncingSimple = true;
+    if ('health' in m) { setNum('health', m.health); setNum('s_health', m.health); }
+    if ('damage' in m) { setNum('damage', m.damage); setNum('s_damage', m.damage); setNum('s_wdamage', m.damage); }
+    if ('walk' in m) { setNum('walk_speed', m.walk); setNum('s_walk', m.walk); }
+    if ('run' in m) { setNum('run_speed', m.run); setNum('s_run', m.run); }
+    if ('fire_delay' in m) { setNum('fire_delay', m.fire_delay); setNum('s_firedelay', m.fire_delay); }
+    document.querySelectorAll('.pill[data-simple]').forEach(p => {
+        const group = p.dataset.simple.split('_')[0];
+        const curGroup = key.split('_')[0];
+        if (group === curGroup) p.classList.toggle('active', p.dataset.simple === key);
+    });
+    syncingSimple = false;
+    updateSummary();
+}
+
+function applySimpleFaction(key) {
+    const m = SIMPLE_FACTIONS[key];
+    if (!m) return;
+    syncingSimple = true;
+    setStr('faction', m.faction);
+    setStr('hate', m.hate);
+    setStr('like', m.like);
+    state.disposition = m.disposition;
+    document.querySelectorAll('.pill[data-sfaction]').forEach(p => p.classList.toggle('active', p.dataset.sfaction === key));
+    document.querySelectorAll('.pill[data-disp]').forEach(c => c.classList.toggle('active', c.dataset.disp === state.disposition));
+    const h = $('simple-faction-hint'); if (h) h.textContent = m.hint + ' Details stay editable in Advanced → Team.';
+    const dh = $('disposition-hint'); if (dh) dh.textContent = DISPOSITION_HINTS[state.disposition] || '';
+    syncingSimple = false;
+    updateSummary();
+}
+
+function setStr(id, v) { const el = $(id); if (el) el.value = v; }
+
+function pushSimpleStatsToAdvanced() {
+    if (syncingSimple) return;
+    syncingSimple = true;
+    if (state.type === 'npc') {
+        if ($('s_health') && $('s_health').value.trim() !== '') setNum('health', $('s_health').value.trim());
+        if ($('s_damage') && $('s_damage').value.trim() !== '') setNum('damage', $('s_damage').value.trim());
+        if ($('s_walk') && $('s_walk').value.trim() !== '') setNum('walk_speed', $('s_walk').value.trim());
+        if ($('s_run') && $('s_run').value.trim() !== '') setNum('run_speed', $('s_run').value.trim());
+    } else {
+        if ($('s_wdamage') && $('s_wdamage').value.trim() !== '') setNum('damage', $('s_wdamage').value.trim());
+        if ($('s_firedelay') && $('s_firedelay').value.trim() !== '') setNum('fire_delay', $('s_firedelay').value.trim());
+        if ($('s_clip') && $('s_clip').value.trim() !== '') setNum('clip_size', $('s_clip').value.trim());
+    }
+    syncingSimple = false;
+    updateSummary();
+}
+
+function pullAdvancedStatsToSimple() {
+    syncingSimple = true;
+    const copyIfSet = (srcId, dstId) => {
+        const v = raw(srcId);
+        setNum(dstId, v);
+    };
+    copyIfSet('health', 's_health');
+    copyIfSet('damage', 's_damage');
+    copyIfSet('walk_speed', 's_walk');
+    copyIfSet('run_speed', 's_run');
+    copyIfSet('damage', 's_wdamage');
+    copyIfSet('fire_delay', 's_firedelay');
+    copyIfSet('clip_size', 's_clip');
+    const f = (raw('faction') || '').toUpperCase();
+    const h = (raw('hate') || '');
+    const l = (raw('like') || '');
+    if (f === '' && h === '' && l === '') {
+        document.querySelectorAll('.pill[data-sfaction]').forEach(p => p.classList.remove('active'));
+        const hint = $('simple-faction-hint');
+        if (hint) hint.textContent = 'Who it fights with. Details stay editable in Advanced → Team.';
+    } else {
+        let guess = 'neutral';
+        if (f.includes('ZOMBIE')) guess = 'zombies';
+        else if (f.includes('COMBINE') || f.includes('COP') || f.includes('ENEMY')) guess = 'enemies';
+        else if (f.includes('REBELS') && state.disposition === 'friendly') guess = 'allies';
+        else if (f.includes('REBELS')) guess = 'rebels';
+        document.querySelectorAll('.pill[data-sfaction]').forEach(p => p.classList.toggle('active', p.dataset.sfaction === guess));
+        const m = SIMPLE_FACTIONS[guess];
+        const hint = $('simple-faction-hint');
+        if (hint && m) hint.textContent = m.hint + ' Details stay editable in Advanced → Team.';
+    }
+    syncingSimple = false;
+}
+
+function setMode(advanced) {
+    state.advanced = !!advanced;
+    const ms = $('mode-simple'), ma = $('mode-advanced');
+    if (ms) { ms.classList.toggle('active', !state.advanced); ms.setAttribute('aria-selected', String(!state.advanced)); }
+    if (ma) { ma.classList.toggle('active', state.advanced); ma.setAttribute('aria-selected', String(state.advanced)); }
+    updateFields();
+    if (!state.advanced) pullAdvancedStatsToSimple();
+}
 
 function $(id) { return document.getElementById(id); }
 function val(id, fb) { const el = $(id); if (!el) return fb; const v = el.value.trim(); return v === '' ? fb : v; }
@@ -221,7 +346,6 @@ function luaStr(s) {
 }
 
 function currentTemplateKey() {
-    if (false) return 'prop';
     if (state.type === 'weapon') return 'weapon_' + state.weaponType;
     if (state.type === 'npc') {
         if (state.base === 'drgbase') return 'npc_drgbase';
@@ -232,12 +356,11 @@ function currentTemplateKey() {
 }
 
 function defaultModelFor(key) {
-    if (key === 'prop') return FALLBACKS.propModel;
     if (key === 'npc_drgbase') return FALLBACKS.npcDrgModel;
     if (key === 'npc_nextbot') return FALLBACKS.npcNextbotModel;
     if (key === 'npc_308') return FALLBACKS.npc308Model;
     if (key && key.indexOf('weapon_') === 0) return FALLBACKS.weaponModel;
-    return FALLBACKS.propModel;
+    return FALLBACKS.npcDrgModel;
 }
 
 function cleanEntName(rawName) {
@@ -264,8 +387,8 @@ function authorValue(name) {
 
 function creditLine(name) {
     const c = (name || '').trim();
-    if (c === '' || c === 'null') return '-- Created By null\n\n';
-    return '-- Created By ' + c + '\n\n';
+    if (c === '' || c === 'null') return '-- Created by Anonymous\n\n';
+    return '-- Created by ' + c + '\n\n';
 }
 
 function parseList(text) {
@@ -440,12 +563,13 @@ function buildWeaponAnims() {
     const fire = animValue('wep_fire_act', 'wep_fire');
     const reload = animValue('wep_reload_act', 'wep_reload');
     const lines = [];
-    if (draw) lines.push('SWEP.DrawSequence = "' + draw + '"');
-    if (idle) lines.push('SWEP.IdleSequence = "' + idle + '"');
-    if (fire) lines.push('SWEP.FireSequence = "' + fire + '"');
-    if (reload) lines.push('SWEP.ReloadSequence = "' + reload + '"');
+    const fmt = (v) => (/^ACT_/.test(v) ? v : '"' + v + '"');
+    if (draw) lines.push('SWEP.DrawAct = ' + fmt(draw));
+    if (idle) lines.push('SWEP.IdleAct = ' + fmt(idle));
+    if (fire) lines.push('SWEP.FireAct = ' + fmt(fire));
+    if (reload) lines.push('SWEP.ReloadAct = ' + fmt(reload));
     if (lines.length === 0) return '';
-    return '-- Custom animations.\n' + lines.join('\n');
+    return '-- Custom animations (ACT enum or sequence fallback to defaults).\n' + lines.join('\n');
 }
 
 function buildProjectileFields(show, c) {
@@ -468,11 +592,16 @@ function collectForm() {
     const baseName = cleanEntName(rawName);
     const cls = buildClassName(baseName);
     const rgb = hexToRgb(val('projectile_color', FALLBACKS.projectileColor));
+    const customAddon = slug(raw('addon_name'), '');
+    const addon = fixedFolderOn() || customAddon || cls.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    const rawClip = raw('clip_size');
+    let clipSize;
+    if (rawClip === '-1') clipSize = -1;
+    else clipSize = int('clip_size', FALLBACKS.clipSize, 1, 1000);
     return {
         credit: luaStr(val('credit', FALLBACKS.credit)),
-        addon: slug(val( ''), FALLBACKS.addon),
         className: cls,
-        addon: (fixedFolderOn() || cls.toLowerCase().replace(/[^a-z0-9_]/g, '_')),
+        addon: addon,
         printName: luaStr(val('print_name', FALLBACKS.printName)),
         model: luaStr(val('model', defaultModelFor(key))),
         modelList: raw('model_list'),
@@ -488,7 +617,7 @@ function collectForm() {
         walk: num('walk_speed', FALLBACKS.walk, 1, 2000),
         run: num('run_speed', FALLBACKS.run, 1, 2000),
         damage: num('damage', FALLBACKS.damage, 0, 100000),
-        clipSize: int('clip_size', FALLBACKS.clipSize, 1, 1000),
+        clipSize: clipSize,
         ammoType: luaStr(val('ammo_type', FALLBACKS.ammoType)),
         fireDelay: num('fire_delay', FALLBACKS.fireDelay, 0.01, 5),
         attackRange: num('attack_range', FALLBACKS.attackRange, 10, 5000),
@@ -507,22 +636,14 @@ function collectForm() {
 
 function fill(tpl, vars) {
     if (!tpl) return '-- template not found';
-    let out = tpl.replace(/\[([A-Z_0-9]+)\]/g, (m, k) => {
+    const out = tpl.replace(/\[([A-Z_0-9]+)\]/g, (m, k) => {
         if (!(k in vars)) return m;
         const v = vars[k];
-        if (v === undefined || v === null) return m;
+        if (v === undefined || v === null) return '';
         return String(v);
     });
-    const known = new Set(Object.keys(vars));
-    out = out.split('\n').filter(line => {
-        const m = line.match(/\[([A-Z_0-9]+)\]/g);
-        if (!m) return true;
-        return m.some(tok => !known.has(tok.slice(1, -1)));
-    }).join('\n');
-    out = out.replace(/\[([A-Z_0-9]+)\]/g, (m, k) => {
-        if (!(k in vars)) return m;
-        return '';
-    });
+    const leftover = out.match(/\[([A-Z_0-9]+)\]/g);
+    if (leftover) console.error('Unreplaced placeholders:', [...new Set(leftover)].join(', '));
     return out;
 }
 
@@ -573,21 +694,30 @@ function validateLua(code) {
     let depth = 0;
     for (let i = 0; i < lines.length; i++) {
         let c = lines[i];
-        const idx = c.indexOf('--');
-        if (idx !== -1) c = c.slice(0, idx);
-        const o = (c.match(/\b(function|if|for|while|do|repeat)\b/g) || []).length;
+        const cidx = c.indexOf('--');
+        if (cidx !== -1) c = c.slice(0, cidx);
+        c = c.replace(/"(?:[^"\\]|\\.)*"/g, '""');
+        const o = (c.match(/\b(function|if|for|while|repeat)\b/g) || []).length;
         const cl = (c.match(/\b(end|until)\b/g) || []).length;
         depth += o - cl;
         if (depth < 0) { errors.push('Line ' + (i + 1)); depth = 0; }
     }
     if (depth !== 0) errors.push('Unbalanced: ' + depth);
+    if (/\[([A-Z_0-9]+)\]/.test(code)) errors.push('Unreplaced placeholder');
     return errors;
+}
+
+function validateClassName(cls) {
+    if (!/^[a-z_][a-z0-9_]*$/.test(cls)) return 'Use lowercase letters, numbers, underscores. Must start with a letter.';
+    if (cls.length < 3) return 'Class name too short.';
+    return '';
 }
 
 function updateSummary() {
     const rawName = slug(val('ent_name', ''), FALLBACKS.entName);
     const cls = buildClassName(cleanEntName(rawName));
-    const addon = fixedFolderOn() || cls.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    const customAddon = slug(raw('addon_name'), '');
+    const addon = fixedFolderOn() || customAddon || cls.toLowerCase().replace(/[^a-z0-9_]/g, '_');
     const path = buildPath(addon, cls);
     const st = $('summary-type'), sc = $('summary-class'), sp = $('summary-path');
     if (sc) sc.textContent = cls;
@@ -620,14 +750,17 @@ function updateCreditPreview() {
     const name = val('credit', 'null');
     const el = $('credit-preview');
     if (!el) return;
-    el.textContent = (name === 'null' || name === '') ? '-- Created By null' : '-- Created By ' + name;
+    el.textContent = (name === 'null' || name === '') ? '-- Created by Anonymous' : '-- Created by ' + name;
 }
 
 function updateFields() {
     const isNPC = state.type === 'npc';
     const isWeapon = state.type === 'weapon';
     const is308 = state.base === '308';
+    const isNextbot = state.base === 'nextbot';
+    const isDrg = state.base === 'drgbase';
     const isRanged = state.behavior === 'ranged' || state.behavior === 'both';
+    const isMeleeBeh = state.behavior === 'melee' || state.behavior === 'both';
     const w = state.weaponType;
     const set = (id, h) => { const el = $(id); if (el) el.hidden = !!h; };
     const isGunLike = w === 'gun' || w === 'dual';
@@ -635,8 +768,8 @@ function updateFields() {
     set('base-section', !isNPC);
     set('behavior-section', !isNPC);
     set('weapon-type-section', !isWeapon);
-    set('health-field', false);
-    set('walk-field', !isNPC);
+    set('health-field', !isNPC);
+    set('walk-field', !(isNPC && !isNextbot));
     set('run-field', !isNPC || is308);
     set('damage-field', false);
     set('clip-field', !(isWeapon && isGunLike));
@@ -645,27 +778,49 @@ function updateFields() {
     set('automatic-field', !(isWeapon && isGunLike));
     set('wmodel-field', !isWeapon);
     set('model-field', isWeapon);
-    set('vmodel-field', !(isWeapon && w !== 'tool'));
-    set('vmodel-fov-field', !(isWeapon && w !== 'tool'));
-        set('model-list-field', !(isNPC && state.base === 'drgbase'));
+    set('vmodel-field', !isWeapon);
+    set('vmodel-fov-field', !isWeapon);
+    set('model-list-field', !(isNPC && (isDrg || isNextbot)));
     set('fire-sound-field', !isWeapon);
     set('reload-sound-field', !(isWeapon && isGunLike));
-    set('npc-sound-field', !(isNPC && (state.behavior === 'melee' || state.behavior === 'both')));
-    set('npc-projectile-sound-field', !(isNPC && state.base === 'drgbase' && isRanged));
-    set('attack-range-field', !(isNPC || (isWeapon && w === 'melee')));
-    set('melee-cooldown-field', !(isNPC && (state.behavior === 'melee' || state.behavior === 'both')));
+    set('npc-sound-field', !(isNPC && isMeleeBeh));
+    set('npc-projectile-sound-field', !(isNPC && isDrg && isRanged));
+    set('attack-range-field', !(isWeapon && w === 'melee'));
+    set('melee-cooldown-field', !(isNPC && isMeleeBeh));
     set('shot-delay-field', !(isNPC && isRanged));
-        set('faction-field', !isNPC);
-    set('disposition-field', !isNPC);
-    set('hate-field', !isNPC || state.behavior === 'passive');
-    set('like-field', !isNPC || state.behavior === 'passive');
-    const showProj = isNPC && isRanged && state.base === 'drgbase';
+    set('faction-field', !(isNPC && isDrg));
+    set('disposition-field', !(isNPC && isDrg));
+    set('hate-field', !(isNPC && isDrg && state.behavior !== 'passive'));
+    set('like-field', !(isNPC && isDrg && state.behavior !== 'passive'));
+    const showProj = isNPC && isRanged && isDrg;
     set('projectile-field', !showProj);
     set('projectile-color-field', !showProj);
     set('projectile-scale-field', !showProj);
     set('projectile-speed-field', !showProj);
-    set('npc-anim-field', !isNPC);
+    set('npc-anim-field', !(isNPC && isDrg));
     set('weapon-anim-field', !isWeapon);
+
+    set('tough-field', !isNPC);
+    set('speed-field', !isNPC);
+    set('power-field', !isWeapon);
+    set('rate-field', !(isWeapon && w !== 'melee'));
+    set('simple-stats-npc', !isNPC);
+    set('simple-stats-weapon', !isWeapon);
+    set('simple-faction-field', !(isNPC && isDrg));
+    set('simple-tune', !(isNPC || isWeapon));
+    const sClip = $('s_clip');
+    if (sClip && sClip.closest('label')) sClip.closest('label').hidden = !(isWeapon && isGunLike);
+
+    const adv = $('advanced-tab');
+    if (adv) {
+        if (!state.advanced) adv.setAttribute('hidden', '');
+        else {
+            adv.removeAttribute('hidden');
+            adv.open = true;
+        }
+    }
+
+    hideEmptySections();
 
     const bh = $('base-hint'); if (bh) bh.textContent = BASE_HINTS[state.base] || '';
     const bvh = $('behavior-hint'); if (bvh) bvh.textContent = BEHAVIOR_HINTS[state.behavior] || '';
@@ -673,6 +828,20 @@ function updateFields() {
     const wh = $('weapon-type-hint'); if (wh) wh.textContent = WEAPON_TYPE_HINTS[w] || '';
 
     updateSummary();
+}
+
+function hideEmptySections() {
+    ['stats-section', 'firing-section', 'audio-section', 'team-section', 'projectile-section', 'anims-section', 'model-section'].forEach(sid => {
+        const sec = $(sid);
+        if (!sec) return;
+        const fields = sec.querySelectorAll('.field');
+        if (fields.length === 0) return;
+        const allHidden = Array.from(fields).every(f => f.hidden);
+        if (sec.tagName === 'DETAILS') {
+            if (allHidden) sec.setAttribute('hidden', '');
+            else sec.removeAttribute('hidden');
+        }
+    });
 }
 
 function generate() {
@@ -735,11 +904,12 @@ function generate() {
 
     const content = creditLine(c.credit) + fill(tpl, vars);
     const errors = validateLua(content);
+    const clsErr = validateClassName(c.className);
+    if (clsErr) errors.push(clsErr);
     const status = $('preview-status');
     if (errors.length > 0) {
         if (status) { status.textContent = 'warning'; status.style.color = 'var(--error)'; }
-        toast('Lua validation warning', 'error');
-        console.warn('Lua warnings:', errors);
+        toast(errors[0], 'error');
     } else {
         if (status) { status.textContent = 'ready'; status.style.color = 'var(--success)'; }
         toast('Generated ' + c.className, 'success');
@@ -778,10 +948,14 @@ function updateSpawnPanel() {
 
 async function downloadZip() {
     const r = state.lastResult; if (!r) return;
-    if (typeof JSZip === 'undefined') { toast('Zip library loading', 'warn'); return; }
+    if (typeof JSZip === 'undefined') {
+        toast('Zip lib offline — downloading .lua instead', 'warn');
+        downloadLua();
+        return;
+    }
     const zip = new JSZip();
     zip.file(r.path, r.content);
-    zip.file('README.txt', 'Xero Addon Generator\n\nMade by XeroChunks\n\n1. Extract into garrysmod/\n2. Restart GMod\n3. Spawn ' + r.ent + '\n');
+    zip.file('addons/' + r.addon + '/README.txt', 'Xero Addon Generator\n\n1. Extract addons/ into garrysmod/\n2. Restart GMod\n3. Spawn ' + r.ent + '\n');
     const blob = await zip.generateAsync({ type: 'blob' });
     saveBlob(blob, 'addon_' + r.addon + '.zip');
     toast('Zip downloaded', 'success');
@@ -806,14 +980,14 @@ function saveBlob(blob, filename) {
 
 async function copyLua() {
     const r = state.lastResult; if (!r) return;
-    try { await navigator.clipboard.writeText(r.content); flash('copy-btn', 'Copied'); toast('Code copied', 'success'); }
-    catch (e) { toast('Copy failed', 'error'); }
+    copyText(r.content, 'Code copied');
+    flash('copy-btn', 'Copied');
 }
 
 async function copyPath() {
     const r = state.lastResult; if (!r) return;
-    try { await navigator.clipboard.writeText(r.path); flash('copy-path-btn', 'Copied'); toast('Path copied', 'success'); }
-    catch (e) { toast('Copy failed', 'error'); }
+    copyText(r.path, 'Path copied');
+    flash('copy-path-btn', 'Copied');
 }
 
 const PRESET_FIELDS = [
@@ -826,8 +1000,10 @@ const PRESET_FIELDS = [
 ];
 const PRESET_ANIM = ['anim_idle_act','anim_walk_act','anim_run_act','anim_attack_act','wep_draw_act','wep_idle_act','wep_fire_act','wep_reload_act'];
 
+const SIMPLE_FIELDS = ['s_health','s_damage','s_walk','s_run','s_wdamage','s_firedelay','s_clip'];
+
 function applyPreset(p) {
-    state.type = p.type || 'prop';
+    state.type = p.type || 'weapon';
     state.base = p.base || 'drgbase';
     state.behavior = p.behavior || 'melee';
     state.disposition = p.disposition || 'hostile';
@@ -836,6 +1012,7 @@ function applyPreset(p) {
 
     PRESET_FIELDS.forEach(id => { const el = $(id); if (el) el.value = ''; });
     PRESET_ANIM.forEach(id => { const el = $(id); if (el) el.value = ''; });
+    SIMPLE_FIELDS.forEach(id => { const el = $(id); if (el) el.value = ''; });
 
     if (p.fields) {
         for (const id in p.fields) {
@@ -849,12 +1026,24 @@ function applyPreset(p) {
     document.querySelectorAll('.pill[data-disp]').forEach(c => c.classList.toggle('active', c.dataset.disp === state.disposition));
     document.querySelectorAll('.pill[data-wtype]').forEach(c => c.classList.toggle('active', c.dataset.wtype === state.weaponType));
     document.querySelectorAll('.pill[data-auto]').forEach(c => c.classList.toggle('active', c.dataset.auto === state.automatic));
+    document.querySelectorAll('.pill[data-simple]').forEach(c => c.classList.toggle('active',
+        c.dataset.simple === 'tough_normal' || c.dataset.simple === 'speed_normal' ||
+        c.dataset.simple === 'power_standard' || c.dataset.simple === 'rate_standard'));
 
     updateFields();
+    pullAdvancedStatsToSimple();
     updateCreditPreview();
 }
 
-function clearForm() {
+function resetSimplePills() {
+    document.querySelectorAll('.pill[data-simple]').forEach(c => c.classList.toggle('active',
+        c.dataset.simple === 'tough_normal' || c.dataset.simple === 'speed_normal' ||
+        c.dataset.simple === 'power_standard' || c.dataset.simple === 'rate_standard'));
+    document.querySelectorAll('.pill[data-sfaction]').forEach(c => c.classList.remove('active'));
+    SIMPLE_FIELDS.forEach(id => { const el = $(id); if (el) el.value = ''; });
+}
+
+function clearForm(silent) {
     PRESET_FIELDS.forEach(id => { const el = $(id); if (el) el.value = ''; });
     PRESET_ANIM.forEach(id => { const el = $(id); if (el) el.value = ''; });
     document.querySelectorAll('.anim-act').forEach(s => s.value = '');
@@ -874,8 +1063,9 @@ function clearForm() {
     document.querySelectorAll('.pill[data-disp]').forEach(c => c.classList.toggle('active', c.dataset.disp === 'hostile'));
     document.querySelectorAll('.pill[data-wtype]').forEach(c => c.classList.toggle('active', c.dataset.wtype === 'gun'));
     document.querySelectorAll('.pill[data-auto]').forEach(c => c.classList.toggle('active', c.dataset.auto === 'auto'));
+    resetSimplePills();
 
-    const pc = $('preview-code'); if (pc) pc.textContent = 'Fill in the form on the left, then press Generate Addon.';
+    const pc = $('preview-code'); if (pc) pc.textContent = 'Set a name, press Generate.';
     const pp = $('preview-path'); if (pp) pp.textContent = 'addons/...';
     const pcl = $('preview-class'); if (pcl) pcl.textContent = '--';
     const st = $('preview-status'); if (st) { st.textContent = 'idle'; st.style.color = ''; }
@@ -883,11 +1073,12 @@ function clearForm() {
         const el = $(id); if (el) el.disabled = true;
     });
     updateSpawnPanel();
-    updateFields();
+    setMode(false);
     updateCreditPreview();
-    toast('Form cleared', 'info');
+    if (!silent) toast('Form cleared', 'info');
 }
 
+let modelBrowseTarget = 'model';
 function renderModelBrowser(filter) {
     const body = $('model-browser-body'); if (!body) return;
     body.innerHTML = '';
@@ -902,7 +1093,8 @@ function renderModelBrowser(filter) {
             const b = document.createElement('button');
             b.type = 'button'; b.className = 'model-list-item'; b.textContent = p;
             b.addEventListener('click', () => {
-                const m = $('model'); if (m) m.value = p;
+                const m = $(modelBrowseTarget) || $('model');
+                if (m) m.value = p;
                 const mb = $('model-browser'); if (mb) mb.hidden = true;
                 updateSummary();
             });
@@ -912,10 +1104,40 @@ function renderModelBrowser(filter) {
     }
 }
 
+function openModelBrowser(target) {
+    modelBrowseTarget = target || 'model';
+    const s = $('model-search'); if (s) s.value = '';
+    renderModelBrowser('');
+    const m = $('model-browser'); if (m) m.hidden = false;
+    setTimeout(() => { if (s) s.focus(); }, 50);
+}
+
 function applyTheme() {
     document.documentElement.setAttribute('data-theme', state.theme);
     const b = $('theme-btn');
     if (b) b.textContent = state.theme === 'dark' ? 'Light' : 'Dark';
+    document.querySelectorAll('.pill[data-theme-set]').forEach(p => p.classList.toggle('active', p.dataset.themeSet === state.theme));
+}
+
+function copyText(text, okMsg) {
+    const done = () => toast(okMsg || 'Copied', 'success');
+    const fallback = () => {
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            if (ok) done();
+            else toast('Copy failed', 'error');
+        } catch (e) { toast('Copy failed', 'error'); }
+    };
+    if (navigator.clipboard && window.isSecureContext !== false) {
+        navigator.clipboard.writeText(text).then(done).catch(fallback);
+    } else fallback();
 }
 
 document.querySelectorAll('.type-card').forEach(el => el.addEventListener('click', () => {
@@ -960,6 +1182,25 @@ document.querySelectorAll('.pill[data-auto]').forEach(el => el.addEventListener(
     updateFields();
 }));
 
+document.querySelectorAll('.pill[data-simple]').forEach(el => el.addEventListener('click', () => applySimple(el.dataset.simple)));
+
+document.querySelectorAll('.pill[data-sfaction]').forEach(el => el.addEventListener('click', () => applySimpleFaction(el.dataset.sfaction)));
+
+['s_health','s_damage','s_walk','s_run','s_wdamage','s_firedelay','s_clip'].forEach(id => {
+    const el = $(id);
+    if (el) el.addEventListener('input', () => {
+        const groups = { s_health: 'tough', s_damage: 'tough', s_wdamage: 'power', s_walk: 'speed', s_run: 'speed', s_firedelay: 'rate', s_clip: null };
+        const g = groups[id];
+        if (g) document.querySelectorAll('.pill[data-simple^="' + g + '"]').forEach(p => p.classList.remove('active'));
+        pushSimpleStatsToAdvanced();
+    });
+});
+
+const mSimple = $('mode-simple');
+if (mSimple) mSimple.addEventListener('click', () => setMode(false));
+const mAdv = $('mode-advanced');
+if (mAdv) mAdv.addEventListener('click', () => setMode(true));
+
 document.querySelectorAll('.preset').forEach(el => el.addEventListener('click', () => {
     const p = PRESETS[el.dataset.preset];
     if (p) { applyPreset(p); toast('Loaded preset: ' + el.textContent, 'success'); }
@@ -972,12 +1213,9 @@ document.querySelectorAll('.quick').forEach(el => el.addEventListener('click', (
 }));
 
 const mb = $('model-browse');
-if (mb) mb.addEventListener('click', () => {
-    const s = $('model-search'); if (s) s.value = '';
-    renderModelBrowser('');
-    const m = $('model-browser'); if (m) m.hidden = false;
-    setTimeout(() => { if (s) s.focus(); }, 50);
-});
+if (mb) mb.addEventListener('click', () => openModelBrowser('model'));
+
+document.querySelectorAll('[data-browse]').forEach(btn => btn.addEventListener('click', () => openModelBrowser(btn.dataset.browse)));
 
 const ms = $('model-search');
 if (ms) ms.addEventListener('input', e => renderModelBrowser(e.target.value));
@@ -987,6 +1225,20 @@ if (mbc) mbc.addEventListener('click', () => { const m = $('model-browser'); if 
 
 const mbb = $('model-browser');
 if (mbb) mbb.addEventListener('click', e => { if (e.target === mbb) mbb.hidden = true; });
+
+const sl = $('settings-link');
+if (sl) sl.addEventListener('click', () => { const m = $('settings-modal'); if (m) m.hidden = false; });
+
+const sc = $('settings-close');
+if (sc) sc.addEventListener('click', () => { const m = $('settings-modal'); if (m) m.hidden = true; });
+
+const sm = $('settings-modal');
+if (sm) sm.addEventListener('click', e => { if (e.target === sm) sm.hidden = true; });
+
+document.querySelectorAll('.pill[data-theme-set]').forEach(el => el.addEventListener('click', () => {
+    state.theme = el.dataset.themeSet;
+    applyTheme();
+}));
 
 const ab = $('about-link');
 if (ab) ab.addEventListener('click', () => { const m = $('about-modal'); if (m) m.hidden = false; });
@@ -1025,10 +1277,9 @@ const pcb = $('preview-copy-btn');
 if (pcb) pcb.addEventListener('click', copyLua);
 
 const scb = $('spawn-copy-btn');
-if (scb) scb.addEventListener('click', async () => {
+if (scb) scb.addEventListener('click', () => {
     const el = $('spawn-code'); if (!el) return;
-    try { await navigator.clipboard.writeText(el.textContent); toast('Command copied', 'success'); }
-    catch (e) { toast('Copy failed', 'error'); }
+    copyText(el.textContent, 'Command copied');
 });
 
 const wt = $('wrap-toggle');
@@ -1037,19 +1288,24 @@ if (wt) wt.addEventListener('change', () => {
 });
 
 const cr = $('credit');
-if (cr) cr.addEventListener('input', updateCreditPreview);
+if (cr) { cr.addEventListener('input', () => { updateCreditPreview(); updateSummary(); }); }
 
 const en = $('ent_name');
 if (en) en.addEventListener('input', updateSummary);
 
+const pn = $('print_name');
+if (pn) pn.addEventListener('input', updateSummary);
+
+const an = $('addon_name');
+if (an) an.addEventListener('input', updateSummary);
+
 
 document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
-        ['model-browser', 'about-modal'].forEach(id => { const el = $(id); if (el) el.hidden = true; });
+        ['model-browser', 'about-modal', 'settings-modal'].forEach(id => { const el = $(id); if (el) el.hidden = true; });
         return;
     }
     if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); generate(); }
-    if (e.ctrlKey && (e.key === 'r' || e.key === 'R')) { e.preventDefault(); clearForm(); }
 });
 
 const FIXED_FOLDER_KEY = 'xac-fixed-folder';
@@ -1097,4 +1353,6 @@ if (ffn) ffn.addEventListener('input', () => { saveFixedFolder(); updateSummary(
 loadFixedFolder();
 applyTheme();
 updateCreditPreview();
-updateFields();
+state.advanced = false;
+clearForm(true);
+window.addEventListener('pageshow', (e) => { if (e.persisted) clearForm(true); });

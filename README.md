@@ -1,6 +1,6 @@
 Xero's Addon Creator
 
-Generate Garry's Mod SWEPs, NPCs, and Props in your browser.
+Generate Garry's Mod SWEPs and NPCs in your browser.
 
 Created by XeroChunks, a Garry's Mod developer.
 
@@ -21,9 +21,6 @@ Pick your base. Fill in the fields. Download the Lua. The boilerplate is already
 Everything runs client-side. No server, no accounts. Download a zip, drop it into garrysmod/, restart the game, and it is in the spawn menu.
 
 What it makes
-
-  Props
-    base_entity with physics, spawnable from the menu
 
   NPCs
     DrGBase nextbot (npc_drg_<name>_nextbot.lua)
@@ -47,11 +44,11 @@ Requirements
   DrGBase (Workshop) for DrGBase NPCs
   308 Base (Workshop) for 308 NPCs and 308-style SWEPs
   x308 Base (Workshop) for the fixed fork of 308
-  No requirements for Props, base_nextbot NPCs, or standalone SWEPs
+  No requirements for base_nextbot NPCs or standalone SWEPs
 
 How to use
 
-  1. Pick a type (Prop, NPC, or Weapon)
+  1. Pick a type (NPC or Weapon)
   2. Pick a base framework if you picked NPC
   3. Fill in the fields. The class name updates live
   4. Click Generate to preview the Lua
